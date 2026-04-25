@@ -1,10 +1,6 @@
 import argparse
-import os
 import git
-import json
 import time
-import requests
-from typing import List, Dict
 import openai
 
 SYSTEM_PROMPT = """
@@ -28,10 +24,11 @@ client = openai.OpenAI(
     api_key="ollama",
 )
 
-RATE_LIMIT_DELAY = 2
+RATE_LIMIT_DELAY = 2 # Seconds to wait before each LLM request
 MAX_RETRIES = 3  # Number of retries for the LLM API call
 BASE_DELAY = 1  # Base delay in seconds between retries
 
+DEBUG = False # Enable detailed error output for debugging
 
 def is_git_repository(path: str) -> bool:
     try:
@@ -42,47 +39,6 @@ def is_git_repository(path: str) -> bool:
 
 
 def get_git_diffs(repo_path: str) -> str:
-    """
-    Get the git diffs for the repository.
-    --------------------------------------------------------------------------------
-    Example output:
-    [
-        {
-            "file": "main.py",
-            "changes": "diff --git a/main.py b/main.py
-            index c174289..6a1b2a8 100644
-            --- a/main.py
-            +++ b/main.py
-            @@ -23,8 +23,10 @@ def is_git_repository(path: str) -> bool:
-                def get_git_diffs(repo_path: str) -> List[Dict[str, str]]:
-                    repo = git.Repo(repo_path)
-                    diffs = []
-                    -    for diff in repo.index.diff(None):
-                    -        diffs.append({\"file\": diff.a_path, \"changes\": diff.diff.decode(\"utf-8\")})
-                    +    for item in repo.index.diff(None):
-                    +        diff_text = repo.git.diff(item.a_path)
-                    +        diffs.append({\"file\": item.a_path, \"changes\": diff_text})
-                    +    print(diffs)
-                            return diffs
-
-
-                    @@ -35,7 +37,7 @@ def generate_commit_message(diffs: List[Dict[str, str]]) -> str | None:
-                    def call_llm_api(prompt: str) -> str | None:
-                    # TODO: Implement LLM API call to generate commit message
-                    -    return None
-                    +    return \"hahah\"
-
-
-                        def main():"
-        }
-    ]
-    --------------------------------------------------------------------------------
-    Args:
-        repo_path (str): The path to the git repository.
-
-    Returns:
-        List[Dict[str, str]]: A list of dictionaries containing the file path and the changes.
-    """
     repo = git.Repo(repo_path)
     diffs = []
 
@@ -116,6 +72,8 @@ def generate_commit_message(diffs: str) -> str | None:
 
     if commit_message is None or not commit_message.strip():
         print("Using fallback commit message because the LLM failed.")
+        if DEBUG:
+            print(diffs)
         return fallback_commit_message(diffs)
 
     return commit_message.strip()
@@ -132,7 +90,7 @@ def call_llm_api(prompt: str) -> str | None:
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.5,
+                temperature=0.4,
             )
             message = response.choices[0].message.content
 
@@ -141,7 +99,10 @@ def call_llm_api(prompt: str) -> str | None:
             return message.strip()
 
         except Exception as e:
-            print(f"LLM API call failed on attempt {attempt + 1}: {e}")
+            print(f"LLM API call failed on attempt {attempt + 1}.")
+
+            if DEBUG:
+                print(f"Debug details: {e}")
 
             if attempt < MAX_RETRIES - 1:
                 delay = BASE_DELAY * (2 ** attempt)
