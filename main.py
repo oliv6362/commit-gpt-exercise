@@ -28,7 +28,7 @@ client = openai.OpenAI(
     api_key="ollama",
 )
 
-RATE_LIMIT_DELAY = 10
+RATE_LIMIT_DELAY = 2
 MAX_RETRIES = 3  # Number of retries for the LLM API call
 BASE_DELAY = 1  # Base delay in seconds between retries
 
@@ -114,28 +114,32 @@ def generate_commit_message(diffs: str) -> str | None:
     return call_llm_api(prompt)
 
 def call_llm_api(prompt: str) -> str | None:
-    try:
-        time.sleep(RATE_LIMIT_DELAY)
+    for attempt in range(MAX_RETRIES):
+        try:
+            time.sleep(RATE_LIMIT_DELAY)
 
-        # noinspection PyTypeChecker
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.2,
-        )
+            # noinspection PyTypeChecker
+            response = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.5,
+            )
+            message = response.choices[0].message.content
 
-        message = response.choices[0].message.content
+            if message is None:
+                return None
+            return message.strip()
 
-        if message is None:
-            return None
+        except Exception as e:
+            print(f"LLM API call failed on attempt {attempt + 1}: {e}")
 
-        return message.strip()
-
-    except Exception as e:
-        print(f"An error occurred while generating the commit message: {str(e)}")
+            if attempt < MAX_RETRIES - 1:
+                delay = BASE_DELAY * (2 ** attempt)
+                print(f"Retrying in {delay} seconds...")
+                time.sleep(delay)
 
     return None
 
