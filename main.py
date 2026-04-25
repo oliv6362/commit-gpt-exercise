@@ -28,6 +28,7 @@ client = openai.OpenAI(
     api_key="ollama",
 )
 
+RATE_LIMIT_DELAY = 10
 MAX_RETRIES = 3  # Number of retries for the LLM API call
 BASE_DELAY = 1  # Base delay in seconds between retries
 
@@ -113,21 +114,30 @@ def generate_commit_message(diffs: str) -> str | None:
     return call_llm_api(prompt)
 
 def call_llm_api(prompt: str) -> str | None:
-    # noinspection PyTypeChecker
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.2,
-    )
-    message = response.choices[0].message.content
+    try:
+        time.sleep(RATE_LIMIT_DELAY)
 
-    if message is None:
-        return None
+        # noinspection PyTypeChecker
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+        )
 
-    return message.strip()
+        message = response.choices[0].message.content
+
+        if message is None:
+            return None
+
+        return message.strip()
+
+    except Exception as e:
+        print(f"An error occurred while generating the commit message: {str(e)}")
+
+    return None
 
 def main():
     parser = argparse.ArgumentParser(
