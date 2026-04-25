@@ -111,7 +111,14 @@ def generate_commit_message(diffs: str) -> str | None:
     
     {diffs}
     """
-    return call_llm_api(prompt)
+
+    commit_message = call_llm_api(prompt)
+
+    if commit_message is None or not commit_message.strip():
+        print("Using fallback commit message because the LLM failed.")
+        return fallback_commit_message(diffs)
+
+    return commit_message.strip()
 
 def call_llm_api(prompt: str) -> str | None:
     for attempt in range(MAX_RETRIES):
@@ -142,6 +149,30 @@ def call_llm_api(prompt: str) -> str | None:
                 time.sleep(delay)
 
     return None
+
+def fallback_commit_message(diffs: str) -> str:
+    lower_diffs = diffs.lower()
+
+    files = [
+        line.replace("File: ", "").strip().lower()
+        for line in diffs.splitlines()
+        if line.startswith("File: ")
+    ]
+
+    if files and all(file.endswith(".md") or "readme" in file for file in files):
+        return "docs: update documentation"
+
+    if files and all("test" in file or "spec" in file for file in files):
+        return "test: update tests"
+
+    if "error" in lower_diffs or "exception" in lower_diffs or "fallback" in lower_diffs:
+        return "fix: handle failure case"
+
+    if any(keyword in lower_diffs for keyword in ["def ", "class ", "import ", "return "]):
+        return "refactor: update implementation"
+
+    return "chore: update project files"
+
 
 def main():
     parser = argparse.ArgumentParser(
