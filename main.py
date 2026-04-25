@@ -5,14 +5,30 @@ import json
 import time
 import requests
 from typing import List, Dict
+import openai
+from openai.types import Completion
 
 SYSTEM_PROMPT = """
-Instruct the LLM in what to do with the data that is provided to it.
-"""
-MODEL_NAME = ""  # TODO: Replace with the actual model name from ollama
-API_ENDPOINT = ""  # TODO: Replace with the actual API endpoint from ollama
+You are an assistant that writes concise Git commit messages from git diffs.
 
-API_KEY = "YOUR_API_KEY"  # TODO: Replace with the actual API key from ollama (maybe not needed)
+Return only the commit message.
+Do not include markdown.
+Do not explain the diff.
+
+Rules:
+- Use conventional commit style when possible.
+- Examples: feat:, fix:, refactor:, docs:, test:, chore:
+- Keep the first line under 72 characters.
+- Use imperative mood, for example: "add", "fix", "update", "refactor".
+"""
+
+MODEL_NAME = "gemma4:latest"
+
+client = openai.OpenAI(
+    base_url="http://localhost:11434/v1",
+    api_key="ollama",
+)
+
 MAX_RETRIES = 3  # Number of retries for the LLM API call
 BASE_DELAY = 1  # Base delay in seconds between retries
 
@@ -69,37 +85,41 @@ def get_git_diffs(repo_path: str) -> str:
     """
     repo = git.Repo(repo_path)
     diffs = []
-    for item in repo.index.diff(None):
-        """
-        TODO: Implement the logic to get the git diffs
 
-        Think about what should be passed to the LLM.
-        Can you in any way guide the LLM to write a good commit message by preprocessing the data in any way?
-        """
+    for item in repo.index.diff(None):
         diff_text = repo.git.diff(item.a_path)
 
-        # remove lines without + or -
-        diff_text = "\n".join(
-            [
-                line
-                for line in diff_text.split("\n")
-                if line.startswith("+") or line.startswith("-")
-            ]
-        )
-        diffs.append(diff_text)
+        useful_lines = []
+        for line in diff_text.split("\n"):
+            if (
+                line.startswith("diff --git")
+                or line.startswith("@@")
+                or line.startswith("+")
+                or line.startswith("-")
+            ):
+                useful_lines.append(line)
 
-    return "\n".join(diffs)
+        formatted_diff = f"File: {item.a_path}\n" + "\n".join(useful_lines)
+        diffs.append(formatted_diff)
+
+    return "\n\n".join(diffs)
 
 
 def generate_commit_message(diffs: str) -> str | None:
-    # TODO: Implement the logic to generate the commit message from the LLM response
-    return None
-
+    prompt = f"""
+    Generate a Git commit message for the following diffs:
+    
+    {diffs}
+    """
+    return call_llm_api(prompt)
 
 def call_llm_api(prompt: str) -> str | None:
-    # TODO: Implement the logic to call the LLM API
-    return None
+    response = client.completions.create(
+        prompt=prompt,
+        model=MODEL_NAME,
+    )
 
+    return response.choices[0].text.strip()
 
 def main():
     parser = argparse.ArgumentParser(
