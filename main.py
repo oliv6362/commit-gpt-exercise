@@ -6,7 +6,6 @@ import time
 import requests
 from typing import List, Dict
 import openai
-from openai.types import Completion
 
 SYSTEM_PROMPT = """
 You are an assistant that writes concise Git commit messages from git diffs.
@@ -114,12 +113,21 @@ def generate_commit_message(diffs: str) -> str | None:
     return call_llm_api(prompt)
 
 def call_llm_api(prompt: str) -> str | None:
-    response = client.completions.create(
-        prompt=prompt,
+    # noinspection PyTypeChecker
+    response = client.chat.completions.create(
         model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.2,
     )
+    message = response.choices[0].message.content
 
-    return response.choices[0].text.strip()
+    if message is None:
+        return None
+
+    return message.strip()
 
 def main():
     parser = argparse.ArgumentParser(

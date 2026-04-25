@@ -1,2 +1,4 @@
 gitpython==3.1.31
 requests==2.28.2
+
+openai
