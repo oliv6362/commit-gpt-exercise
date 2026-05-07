@@ -6,9 +6,13 @@ It reads the Git diff, sends it to a local LLM through Ollama, and prints a sugg
 
 ## Prerequisites
 
-Make sure Ollama is running locally and that you have pulled an Ollama model, for example `gemma4:latest`.
+- Make sure Ollama is running locally and that you have pulled an Ollama model, for example `gemma4:latest`.
+- Miniconda, Anaconda, venv, or another Python virtual environment tool
+
 
 ## Installation
+
+Create and activate a virtual environment.
 
 Install Python dependencies:
 
